@@ -1,0 +1,848 @@
+<!DOCTYPE html>
+<html lang="ko" class="light">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>온유ONU 노래책</title>
+
+  <script>
+    document.getElementById('goto-pc-btn')?.addEventListener('click', function(e) {
+      e.preventDefault(); // a태그의 기본 이동 방지
+      sessionStorage.setItem('forcePCView', '1');
+      window.location.href = '/index.html';
+    });
+  </script>
+  <script>
+    (function() {
+      const ua = navigator.userAgent;
+      const isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(ua);
+      if (!isMobile) {
+        // 1) PC: index.html 그대로 로드
+        return;
+      }
+      
+
+      if (/Android/i.test(ua)) {
+        // Android: Intent URI 사용
+        const intentUri = 'intent://' +
+          targetMobile.replace(/^https?:\/\//, '') +
+          '#Intent;scheme=https;package=com.android.chrome;end';
+        window.location.href = intentUri;
+      }
+      else if (/iPhone|iPad|iPod/i.test(ua)) {
+        // iOS: chrome:// 스킴
+        window.location.href = targetMobile.replace(/^https?:\/\//, 'googlechrome://');
+      }
+      else {
+        // 기타 모바일 브라우저: 그냥 이동
+        window.location.href = targetMobile;
+      }
+
+      // 크롬이 없거나 스킴이 막히면 2초 후 fallback
+      setTimeout(() => {
+        window.location.replace(fallback320);
+      }, timeoutMs);
+    })();
+  </script>
+  <script>
+    // 헤더 높이만큼 메인에 패딩을 줘서 겹침 방지
+    window.addEventListener('DOMContentLoaded', () => {
+      function updateMainPadding() {
+        const header = document.querySelector('header');
+        const main = document.querySelector('main');
+        if (!header || !main) return;
+        main.style.paddingTop = header.offsetHeight + 'px';
+      }
+
+      updateMainPadding();
+      window.addEventListener('resize', updateMainPadding);
+    });
+  </script>
+</head>
+
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>온유ONU 노래책</title>
+  <meta name="description" content="스트리머 전용 개인 노래책 – 곡 관리 및 시청자 요청 지원"/>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@1/dist/umd/supabase.min.js"></script>
+  <script type="module" src="./appmobile.js"></script>
+  <style>
+  /* 헤더 글래스 효과 */
+  .glass {
+    background: rgba(255,255,255,0.65) !important;
+    backdrop-filter: blur(10px) !important;
+    border: 1px solid rgba(255,255,255,0.22) !important;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.04) !important;
+  }
+  
+  /* 통계 카드 글래스 효과 */
+  .stat-card {
+    background: rgba(255,255,255,0.58) !important;
+    backdrop-filter: blur(8px) !important;
+    border: 1px solid rgba(255,255,255,0.18) !important;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.07) !important;
+    border-radius: 1.5rem !important;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .stat-card:hover {
+    background: rgba(255,255,255,0.85) !important;
+    backdrop-filter: blur(16px) !important;
+    border: 1.5px solid rgba(99,102,241,0.11) !important;
+    box-shadow: 0 12px 32px rgba(0,0,0,0.08) !important;
+    transform: translateY(-4px);
+  }
+  
+  /* 1. 그라데이션 외곽선용 래퍼 */
+  .card-gradient-border {
+    position: relative;
+    display: block;
+    border-radius: 1.3rem; /* 24px - song-card와 일치 */
+    padding: 0;
+    transition: transform 0.5Ss cubic-bezier(0.4,0,0.2,1), box-shadow 0.5s cubic-bezier(0.4,0,0.2,1);/* 카드와 딱 붙게 */
+    /* 카드 크기에 영향 X, 오로지 border만 그려줌 */
+  }
+  
+  .card-gradient-border::before {
+    content: "";
+    position: absolute;
+    inset: -3px;           /* 카드 밖 3px만큼 확장 (조절 가능) */
+    z-index: 1;
+    border-radius: 1.3rem; /* song-card보다 약간 더 둥글게 */
+    background: linear-gradient(45deg, #6366f1, #8b5cf6, #ec4899, #f59e0b);
+    filter: blur(0.5px) brightness(1.22);
+    opacity: 0;
+    transition: opacity 0.5s;
+    pointer-events: none;
+    /* 애니메이션용 변수 */
+    animation: borderGradientLoop 3.2s linear infinite paused;
+  }
+  
+  /* 2. 호버시 그라데이션 테두리만 등장 & 애니메이션 활성화 */
+  .card-gradient-border:hover::before,
+  .card-gradient-border:focus-within::before {
+    transform: translateY(-8px) scale(1.02);
+    opacity: 1;
+    animation-play-state: running;
+    box-shadow:
+      0 0 14px 2px rgba(153,102,255,0.22),
+      0 0 40px 8px rgba(236,72,153,0.12),
+      0 0 64px 20px rgba(245,158,11,0.09);
+  }
+  
+  /* 3. 카드 내부는 평소와 동일하게 */
+  .song-card {
+    position: relative;
+    z-index: 2;        /* always on top of border */
+    border-radius: 1.5rem;
+    overflow: hidden;
+    background: rgba(255,255,255,0.72);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255,255,255,0.20);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.06);
+    transition: all 0.5s cubic-bezier(0.4,0,0.2,1);
+  }
+  
+  .song-card:hover,
+  .song-card:focus-within,
+  .song-card:has(.request-button:hover),
+  .song-card:has(.request-button:focus) {
+    transform: translateY(-8px) scale(1.02) !important;
+    background: rgba(255,255,255,0.97) !important;
+    border: 1.5px solid rgba(255,255,255,0.4) !important;
+    box-shadow:
+      0 25px 50px rgba(0,0,0,0.15),
+      0 0 0 1px rgba(99,102,241,0.17),
+      inset 0 1px 0 rgba(255,255,255,0.9) !important;
+  }
+
+  
+  .song-card > *, .song-card .card-content {
+    position: relative;
+    z-index: 2;
+  }
+  
+  /* 4. 빛나는 사선 흰색 라인 효과(필요시 유지) */
+  .song-card::after {
+    content: '';
+    position: absolute;
+    top: 0; left: -150%; width: 20%; height: 100%;
+    transform: skewX(-25deg);
+    background: linear-gradient(
+      45deg,
+      rgba(255,255,255,0.25) 0%,
+      rgba(255,255,255,0.7) 50%,
+      rgba(255,255,255,0.25) 100%
+    );
+    filter: blur(10px);
+    box-shadow: 0 0 30px rgba(255,255,255,0.8);
+    opacity: 0;
+    pointer-events: none;
+    transition: none;
+    z-index: 3;
+  }
+  .song-card:hover::after {
+    animation: glowShine 0.44s ease-out forwards;
+  }
+  @keyframes glowShine {
+    0%   { left: -150%; opacity: 0; }
+    50%  { left: 50%; opacity: 1; }
+    100% { left: 150%; opacity: 0; }
+  }
+  
+  /* 5. 동적 border 색상변화 애니메이션 */
+  @keyframes borderGradientLoop {
+    0%   { filter: blur(0.5px) brightness(1.20) hue-rotate(0deg);}
+    100% { filter: blur(0.5px) brightness(1.20) hue-rotate(360deg);}
+  }
+
+
+
+
+
+
+
+  
+  /* 카드 호버 안할 때 블러/어두움 효과 적용(다른 카드) */
+  .song-card:not(:hover) { filter: none; opacity: 1; transform: none; }
+  .song-card.blur-others { filter: blur(2px); opacity: 0.7; transform: scale(0.98); }
+  .song-card.active-request { filter: none !important; opacity: 1 !important; transform: none !important; z-index: 2; }
+  
+  /* ---- 버튼/검색창/토글/필터바 스타일 ---- */
+  
+  /* 검색창 focus 시, 필터추가 버튼에만 그라데이션 */
+  #filter-bar .relative:focus-within + #add-filter-button,
+  #filter-bar .relative:focus-within ~ #add-filter-button {
+    background: linear-gradient(45deg, #6366f1, #8b5cf6, #ec4899, #f59e0b) !important;
+    background-size: 300% 300% !important;
+    animation: subtleHologram 5s ease-in-out infinite !important;
+    color: #ffffff !important;
+    border: none !important;
+  }
+  @keyframes subtleHologram {
+    0%, 100% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+  }
+  
+  /* 검색창 */
+  #search-input {
+    background: rgba(255,255,255,0.8);
+    border: 1px solid #e2e8f0 !important;
+    border-radius: 9999px !important;
+  }
+  #search-input.active,
+  #search-input:focus {
+    outline: none !important;
+    background-image:
+      linear-gradient(white, white),
+      linear-gradient(45deg, #6366f1, #8b5cf6, #ec4899, #f59e0b);
+    background-origin: padding-box, border-box;
+    background-clip: padding-box, border-box;
+    border: 2px solid transparent !important;
+  }
+  
+  /* 검색창 컨테이너/필터바 투명화 */
+  #search-container,
+  .search-bar,
+  .filter-container {
+    background: transparent !important;
+    backdrop-filter: none !important;
+    box-shadow: none !important;
+  }
+  
+  /* 높이/간격/정렬 통일 */
+  #search-input,
+  #add-filter-button,
+  #sort-combo,
+  #fav-toggle,
+  #completed-toggle,
+  #complete-toggle {
+    height: 2.5rem !important;
+  }
+  #view-mobile,
+  #toggle-role,
+  #add-filter-button,
+  #sort-select,
+  #sort-order,
+  #fav-toggle {
+    padding: 0.5rem 1.5rem !important;
+    height: 2.5rem       !important;
+  }
+  #sort-select, #sort-order { min-width: 7rem !important; max-width: 9rem !important; }
+  #completed-toggle, #fav-toggle { width: 6rem !important; }
+  #add-filter-button { padding-left: 1rem !important; padding-right: 1rem !important; }
+  #theme-toggle { display: none !important; }
+  
+  .filter-container {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 1rem;
+  }
+  .filter-container > * {
+    height: 3.5rem; display: flex; align-items: center;
+  }
+  .filter-container input,
+  .filter-container select {
+    flex: 1; min-width: 200px;
+  }
+  .filter-container button {
+    white-space: nowrap; padding-left: 1.5rem; padding-right: 1.5rem;
+  }
+  @media (max-width: 768px) {
+    .filter-container { flex-direction: column; align-items: stretch; }
+    .filter-container > * { width: 100%; }
+  }
+  
+  /* 토글 스위치 */
+  .toggle-switch {
+    width: 100%; max-width: 600px;
+    background: rgba(255,255,255,0.8);
+    border: 1px solid #e2e8f0;
+    border-radius: 2rem;
+    padding: 0.25rem;
+    display: flex; position: relative;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+  }
+  .toggle-switch::before {
+    content: '';
+    position: absolute; top: 0.25rem; left: 0.25rem;
+    width: calc(33.333% - 0.125rem); height: calc(100% - 0.5rem);
+    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    border-radius: 1.5rem;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 4px 12px rgba(99,102,241,0.3);
+    z-index: 1;
+  }
+  .toggle-switch[data-active="1"]::before { transform: translateX(0%); }
+  .toggle-switch[data-active="2"]::before { transform: translateX(100%); }
+  .toggle-switch[data-active="3"]::before { transform: translateX(200%); }
+  .toggle-option {
+    flex: 1 1 auto; min-width: 100px;
+    color: #1f2937 !important;
+    background: transparent !important;
+    box-shadow: none     !important;
+    padding: 0.75rem 1.5rem;
+    border-radius: 1.5rem;
+    font-weight: 600;
+    font-size: 0.875rem;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    cursor: pointer; position: relative; z-index: 2; flex: 1; text-align: center;
+  }
+  .toggle-option.active { color: white; }
+  .toggle-option.inactive { color: #ffffff; }
+  .toggle-option.inactive:hover { color: #475569; }
+  
+  /* ---- 필터/태그/배지/카테고리 ---- */
+  
+  #tag-container { pointer-events: auto; }
+  #tag-container .filter-tag,
+  #tag-container .filter-tag button { pointer-events: auto; }
+  #active-filters {
+    display: flex; flex-wrap: wrap; gap: 0.75rem;
+    align-items: center; justify-content: flex-start;
+    min-height: 2rem;
+  }
+
+  .filter-tag {
+    background: linear-gradient(45deg, #6366f1, #8b5cf6, #ec4899, #f59e0b) !important;
+    background-size: 300% 300% !important;
+    animation: subtleHologram 5s ease-in-out infinite !important;
+    color: #fff !important;
+    border: none !important;
+    box-shadow: none !important;
+    font-weight: 700;
+    font-size: 0.95rem;
+    display: inline-flex;
+    align-items: center;
+    padding: 0.18em 0.8em 0.18em 0.8em;
+    border-radius: 9999px !important;
+    min-height: 2em;
+    margin-right: 0.2em;
+    line-height: 1.3;
+    gap: 0.2em;
+    vertical-align: middle;
+  }
+  .filter-tag button {
+    margin-left: 0em;
+    background: none;
+    border: none;
+    outline: none;
+    color: #fff;
+    font-size: 1.2em;
+    font-weight: bold;
+    cursor: pointer;
+    border-radius: 50%;
+    width: 1.3em;
+    height: 1.3em;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s;
+    line-height: 1;
+    padding: 0;
+    vertical-align: middle;
+  }
+
+
+
+  .practice-badge {
+    background: #fde047 !important; color: #1f2937 !important;
+    border: 1px solid #facc15 !important; border-radius: 0.5rem !important;
+  }
+  .key-badge, .note-badge, .difficulty-badge, .completed-badge, .recommend-badge, .bomb-badge, .category-tag, .toggle-option {
+    border-radius: 0.5rem !important;
+  }
+  .key-badge {
+    background: linear-gradient(135deg, #6366f1, #8b5cf6) !important; color: white !important; font-weight: 600;
+    border: 1px solid rgba(99,102,241,0.2) !important; box-shadow: 0 2px 8px rgba(99,102,241,0.2) !important;
+  }
+  .note-badge {
+    background: #e5e7eb !important; color: #000 !important;
+    border: 1px solid #d1d5db !important; padding: .25rem .75rem !important; font-size: .75rem !important;
+    font-weight: 600 !important; box-shadow: none !important;
+  }
+  .completed-badge {
+    background: linear-gradient(135deg, #10b981, #059669) !important; color: white !important;
+    border: 1px solid rgba(16,185,129,0.3) !important; box-shadow: 0 4px 15px rgba(16,185,129,0.4) !important;
+  }
+  .recommend-badge {
+    background: linear-gradient(135deg, #f59e0b, #d97706) !important; color: white !important;
+    border: 1px solid rgba(245,158,11,0.3) !important; box-shadow: 0 4px 15px rgba(245,158,11,0.4) !important;
+  }
+  .bomb-badge {
+    background: linear-gradient(135deg, #ef4444, #b91c1c) !important; color: white !important;
+    border: 1px solid rgba(239,68,68,0.3) !important; box-shadow: 0 4px 15px rgba(239,68,68,0.4) !important;
+  }
+  .difficulty-badge {
+    background: linear-gradient(135deg, #f8fafc, #f1f5f9) !important; color: #475569 !important; font-weight: 600;
+    border: 1px solid rgba(148,163,184,0.2) !important;
+  }
+  .category-tag {
+    background: #f3f4f6 !important;  /* 밝은 회색 (tailwind gray-100) */
+    color: #222 !important;          /* 검정에 가까운 진한 회색 */
+    border: 1px solid #e5e7eb !important;
+    box-shadow: none !important;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.3rem;
+    transition: all 0.3s cubic-bezier(0.4,0,0.2,1);
+  }
+
+  .category-tag:hover {
+    background: rgba(255,255,255,0.9);
+    backdrop-filter: blur(12px);
+    color: #6366f1;
+    border: 1px solid rgba(99,102,241,0.2);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(99,102,241,0.15);
+  } 
+  
+  /* notes 배지(카테고리와 동일) + marquee */
+  @keyframes marquee {
+    from { transform: translateX(100%); }
+    to   { transform: translateX(-100%); }
+  }
+  [data-note] .note-text {
+    display: inline-block; padding-left: 100%; animation: marquee 8s linear infinite;
+  }
+  
+  /* 완곡/추천 토글 버튼 - 기본/활성화 구분 */
+  #fav-toggle:not(.bg-yellow-700),
+  #completed-toggle:not(.bg-green-700) {
+    background: #f8fafc !important; color: #64748b !important;
+    border: 1px solid #e2e8f0 !important; box-shadow: 0 1px 4px rgba(0,0,0,0.05) !important;
+  }
+  #fav-toggle.bg-yellow-700,
+  #completed-toggle.bg-green-700 {
+    background: linear-gradient(45deg, #6366f1, #8b5cf6, #ec4899, #f59e0b) !important;
+    background-size: 300% 300% !important;
+    animation: subtleHologram 5s ease-in-out infinite !important;
+    color: #fff !important; border: none !important; box-shadow: none !important;
+  }
+  
+  /* ---- 버튼 등 기타 ---- */
+  
+  .btn-primary {
+    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    color: white; border: 1px solid rgba(99,102,241,0.2);
+    transition: all 0.3s cubic-bezier(0.4,0,0.2,1);
+    box-shadow: 0 2px 8px rgba(99,102,241,0.2);
+  }
+  .btn-primary.no-translate:hover { transform: none !important; }
+  .btn-primary:hover {
+    background: rgba(255,255,255,0.9);
+    backdrop-filter: blur(12px);
+    color: #6366f1;
+    border: 1px solid rgba(99,102,241,0.2);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(99,102,241,0.15);
+  }
+  .btn-secondary {
+    background: #f8fafc;
+    color: #64748b;
+    border: 1px solid #e2e8f0;
+    transition: all 0.3s cubic-bezier(0.4,0,0.2,1);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+  }
+  .btn-secondary:hover {
+    background: rgba(255,255,255,0.9);
+    backdrop-filter: blur(12px);
+    color: #475569;
+    border: 1px solid rgba(99,102,241,0.2);
+    transform: translateY(-1px);
+    box-shadow: 0 6px 20px rgba(0,0,0,0.08);
+  }
+  .request-button {
+    display: none;
+    background: rgba(255,255,255,0.2);
+    color: #222;
+    border: none;
+    box-shadow: none;
+    font-weight: 700;
+    font-size: 0.8rem;
+    padding: 0.1em 0.5em;
+    border-radius: 0.3em;
+    transition: background 0.18s;
+    position: absolute;
+    left: 50%; top: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 50;
+    cursor: pointer;
+  }
+  .request-button:hover {
+    background: rgba(255,255,255,0.38);
+    color: #111;
+  }
+  .song-card:hover .request-button,
+  .song-card:focus-within .request-button {
+    display: block;
+  }
+
+  .btn-primary[data-transpose]:hover {
+    background: linear-gradient(135deg, #6366f1, #8b5cf6) !important;
+    color: #fff !important;
+    transform: none !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+    border: none !important;
+  }
+  
+  /* 입력필드(인풋) */
+  .input-field {
+    background: rgba(255,255,255,0.8);
+    border: 1px solid #e2e8f0;
+    transition: all 0.3s cubic-bezier(0.4,0,0.2,1);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+  }
+  .input-field:focus {
+    background: rgba(255,255,255,0.95);
+    backdrop-filter: blur(8px);
+    border: 1px solid #6366f1;
+    box-shadow: 0 0 0 3px rgba(99,102,241,0.1);
+  }
+  
+  /* 제목 텍스트(카드) */
+  .song-title {
+    color: #1f2937 !important; font-weight: 700;
+  }
+  
+  /* 헤더 타이틀 그라데이션 */
+  .main-title {
+    background: linear-gradient(45deg, #6366f1, #8b5cf6, #ec4899, #f59e0b);
+    background-size: 300% 300%;
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    background-clip: text; animation: subtleHologram 5s ease-in-out infinite;
+  }
+  
+  /* glass-subtle (서브글래스) */
+  .glass-subtle {
+    background: rgba(255,255,255,0.4);
+    backdrop-filter: blur(6px);
+    border: 1px solid rgba(255,255,255,0.15);
+    box-shadow: 0 2px 12px rgba(0,0,0,0.03);
+  }
+  
+  /* gradient-bg (배경) */
+  .gradient-bg {
+    background: linear-gradient(135deg, #ffffff 0%, #fefefe 25%, #fdfdfd 50%, #fcfcfc 75%, #ffffff 100%);
+    background-size: 200% 200%; animation: subtleGradientShift 12s ease infinite;
+  }
+  @keyframes subtleGradientShift {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+  }
+  
+  /* 스크롤바 커스터마이징 (모달) */
+  #modal-grid {
+    -ms-overflow-style: none; scrollbar-width: thin; scrollbar-color: #e5e7eb #f9fafb; overflow: auto;
+  }
+  #modal-grid::-webkit-scrollbar { width: 6px; }
+  #modal-grid::-webkit-scrollbar-track { background: #f9fafb; border-radius: 3px; }
+  #modal-grid::-webkit-scrollbar-thumb { background: linear-gradient(45deg, #e0e7ff, #c7d2fe); border-radius: 3px; }
+  #modal-grid::-webkit-scrollbar-thumb:hover { background: linear-gradient(45deg, #c7d2fe, #a5b4fc); }
+  
+  /* 숨기기 */
+  #total-categories, #total-artists { display: none !important; }
+  
+  /* 기타 */
+  #tag-container { pointer-events: auto; }
+
+  [data-artist], .artist-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    display: block;
+    max-width: 100%;  /* 필요시 조절 */
+  }
+  [data-instlink] {
+    min-width: 0;
+    flex: 1 1 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  
+  /* KEY 버튼에 */
+  [data-key] {
+    min-width: 0;
+    flex-shrink: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* 복사 버튼 hover/focus시에도 카드 hover 효과 유지 (app.js 수정 없음) */
+  .song-card:has(.request-button:hover),
+  .song-card:has(.request-button:focus),
+  .group:has([data-request]:hover),
+  .group:has([data-request]:focus) {
+    transform: translateY(-8px) scale(1.02) !important;
+    background: rgba(255,255,255,0.97) !important;
+    border: 1.5px solid rgba(255,255,255,0.4) !important;
+    box-shadow:
+      0 25px 50px rgba(0,0,0,0.15),
+      0 0 0 1px rgba(99,102,241,0.17),
+      inset 0 1px 0 rgba(255,255,255,0.9) !important;
+  }
+  /* 뱃지 pointer-events:none으로 오버레이 클릭 방지 */
+  .song-card .absolute span { pointer-events: none; }
+    
+  #song-grid {
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
+  }
+  
+
+
+  </style>
+
+</head>
+<body class="gradient-bg text-gray-800 min-h-screen">
+  <!-- HEADER -->
+  <header class="glass fixed top-0 left-0 w-full z-50">
+    <!-- 1행: 로고·테마 토글·뷰 모드·스트리머 모드 -->
+    <div class="top-bar max-w-[1200px] mx-auto flex items-center justify-between px-4 py-2 mb-1">
+      <h1 class="main-title text-4xl font-black">✨온유ONU 노래책</h1>
+      <div class="flex items-center space-x-4">
+        <button id="theme-toggle" class="p-3 rounded-full hover:bg-white/60 hover:backdrop-blur-8 transition-all duration-300">
+          <span id="theme-icon" class="text-2xl">☀️</span>
+        </button>
+        <button id="view-pc" class="btn-secondary px-6 py-3 text-sm font-bold rounded-full" style="display:none;">
+          그리드로 보기
+        </button>
+        <button id="toggle-role" class="btn-primary px-4 rounded-full font-bold" style="display: none;">
+          ▶ 스트리머 모드
+        </button>
+      </div>
+    </div>
+    <!-- 2행: 검색창 + 필터 추가 -->
+    <section id="filter-bar" class="max-w-[1200px] mx-auto flex items-center px-4 py-2 mb-0.5">
+      <div class="relative flex-1">
+        <div id="tag-container" class="absolute inset-y-0 right-0.5 flex flex-row-reverse items-center space-x-1 space-x-reverse pr-2 z-10"></div>
+        <form id="filter-form" autocomplete="off" style="display:inline;">
+          <input id="search-input" type="text" placeholder="🔍 제목·가수·태그 검색..." autocomplete="off" class="input-field w-full pl-6 pr-4 rounded-full"/>
+        </form>
+      </div>
+      <button id="add-filter-button" class="btn-secondary px-4 ml-4 font-bold rounded-full whitespace-nowrap" style="display: none;">
+        필터 추가
+      </button>
+    </section>
+    <!-- 3행: 정렬 + 완곡만 + 추천만 -->
+    <section id="sort-bar" class="max-w-[1200px] mx-auto flex items-center px-4 py-2">
+      <select id="sort-combo" class="input-field px-4 rounded-full mr-2">
+        <option value="latest_desc">최신순▼</option>
+        <option value="latest_asc">최신순▲</option>
+        <option value="title_asc">가나다순▲</option>
+        <option value="title_desc">가나다순▼</option>
+        <option value="artist_asc">가수순▲</option>
+        <option value="artist_desc">가수순▼</option>
+        <option value="proficiency_asc">숙련도순▲</option>
+        <option value="proficiency_desc">숙련도순▼</option>
+      </select>
+      <button id="completed-toggle" class="btn-secondary px-4 rounded-full whitespace-nowrap font-bold mr-2">
+        완곡만
+      </button>
+      <button id="fav-toggle" class="btn-secondary px-4 rounded-full whitespace-nowrap font-bold">
+        추천만
+      </button>
+    </section>
+  </header>
+
+
+  <main class="container mx-auto py-10 space-y-10">
+    <!-- 통계 -->
+    <section class="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div class="stat-card p-6 rounded-3xl text-center">
+        <div class="text-3xl mb-2">🎵</div>
+        <div class="text-2xl font-bold text-indigo-600" id="total-songs">0</div>
+        <div class="text-sm text-gray-600 font-medium">총 곡수</div>
+      </div>
+      <div class="stat-card p-6 rounded-3xl text-center">
+        <div class="text-3xl mb-2">🎙️</div>
+        <div class="text-2xl font-bold text-purple-600" id="total-categories">0</div>
+        <div class="text-lg font-bold text-gray-800">신청방법: 3,000🧀</div>
+        <div class="text-lg font-bold text-gray-800">노래신청은 미션이 아니므로<br />⚠️환불이 불가 합니다.⚠️</div>
+
+      </div>
+      <div class="stat-card p-6 rounded-3xl text-center">
+        <div class="text-3xl mb-2">💣</div>
+        <div class="text-2xl font-bold text-pink-600" id="total-artists">0</div>
+        <div class="text-lg font-bold text-gray-800">💣곡의 단가는 최소 5,000🧀</div>
+        <div class="text-lg font-bold text-gray-800">💣곡을 신청시, 반드시 채팅 문의하고<br />신청해주세요!</div>
+      </div>
+    </section>
+
+    <!-- 추가/수정 폼 (스트리머) -->
+    <section id="add-form-container" class="glass-subtle p-8 rounded-3xl shadow-lg" hidden>
+      <h3 class="text-2xl font-bold mb-6 text-gray-800 flex items-center gap-3">
+        <span class="text-3xl">🎼</span> 곡 추가 / 수정
+      </h3>
+      <form id="add-song-form" class="grid sm:grid-cols-2 gap-6">
+        <input id="song-title" type="text" placeholder="제목" required class="input-field p-4 rounded-2xl"/>
+        <input id="song-artist" type="text" placeholder="아티스트" required class="input-field p-4 rounded-2xl"/>
+        <input id="song-categories" type="text" placeholder="카테고리(쉼표 구분)" class="input-field p-4 rounded-2xl"/>
+        <div class="flex space-x-3">
+          <input id="song-key" type="text" placeholder="키 (예: G, Am)" class="input-field p-4 rounded-2xl flex-1"/>
+          <input id="song-transpose" type="number" placeholder="+2 / -1" class="input-field p-4 rounded-2xl w-28"/>
+        </div>
+        <textarea id="song-notes" placeholder="노트" class="input-field p-4 rounded-2xl col-span-full h-24"></textarea>
+
+        <label class="flex items-center space-x-3 col-span-full">
+          <input id="song-completed" type="checkbox" class="h-6 w-6 text-green-500 rounded-lg"/>
+          <span class="text-gray-700 font-medium">완곡여부</span>
+        </label>
+        <label class="flex items-center space-x-3 col-span-full">
+          <input id="song-recommend" type="checkbox" class="h-6 w-6 text-yellow-500 rounded-lg"/>
+          <span class="text-gray-700 font-medium">추천</span>
+        </label>
+        <label class="flex items-center space-x-3 col-span-full">
+          <input id="song-bomb" type="checkbox" class="h-6 w-6 text-red-500 rounded-lg"/>
+          <span class="text-gray-700 font-medium">💣</span>
+        </label>
+
+        <input id="song-inst" type="url" placeholder="INST 링크 (YouTube)" required class="input-field p-4 rounded-2xl col-span-full"/>
+        <input id="song-thumbnail-url"
+               type="url"
+               placeholder="썸네일 URL (YouTube)"
+               class="input-field p-4 rounded-2xl col-span-full"/>
+        <button type="submit" id="add-submit-button" class="btn-primary col-span-full px-8 py-4 rounded-2xl font-bold text-lg">
+          ✨ 추가하기
+        </button>
+      </form>
+    </section>
+
+
+    <!-- 뷰 모드 토글 -->
+    <section class="flex justify-center">
+      <div id="view-mode" class="toggle-switch" data-active="1">
+        <div id="view-songs" class="toggle-option active" data-index="1">노래</div>
+        <div id="view-categories" class="toggle-option inactive" data-index="2">카테고리</div>
+        <div id="view-artists" class="toggle-option inactive" data-index="3">가수</div>
+      </div>
+    </section>
+
+    <!-- 곡 그리드 -->
+    <section>
+      <div id="song-grid" class="grid grid-cols-1 gap-3"></div>
+    </section>
+
+    <!-- 페이지네이션 (숨김해도 무관) -->
+    <section id="pagination" class="hidden"></section>
+  </main>
+
+  <!-- 모달 -->
+  <section id="tag-modal" class="hidden fixed inset-0 bg-black/10 backdrop-blur-sm flex items-center justify-center p-8 z-50">
+    <div id="modal-content" class="glass w-[90vw] max-w-[1200px] p-10 rounded-3xl shadow-2xl flex flex-col max-h-[95vh] overflow-y-auto">
+      <button id="modal-close" class="self-end mb-6 text-3xl text-gray-600 hover:text-red-500">✕</button>
+      <h2 id="modal-title" class="text-3xl font-bold mb-8 text-gray-800"></h2>
+      <div id="modal-grid" class="flex flex-col w-full gap-2 overflow-y-auto max-h-[80vh] p-4"></div>
+    </div>
+  </section>
+
+  <!-- 카드 템플릿 -->
+  <template id="song-card-template">
+    <div class="card-gradient-border">
+      <div class="song-card group flex items-center bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg p-2 gap-4 min-h-[90px] relative">
+        <!-- [1] 뱃지: 카드 기준(썸네일보다 위), 가로 배치 -->
+        <div class="absolute top-0.5 left-1.5 flex flex-row gap-1 z-50 pointer-events-none">
+          <span data-completed class="completed-badge px-2 py-0.5 rounded text-xs font-bold">완곡</span>
+          <span data-recommend class="recommend-badge px-2 py-0.5 rounded text-xs font-bold">추천</span>
+          <span data-bomb class="bomb-badge px-2 py-0.5 rounded text-xs font-bold">💣</span>
+        </div>
+        <!-- [2] 썸네일: 왼쪽, relative -->
+        <div class="flex-shrink-0 w-20 h-20 rounded-xl overflow-hidden bg-gray-200 relative z-10">
+          <img data-img class="w-full h-full object-cover" alt="thumbnail"/>
+          <!-- 복사버튼: 썸네일 중앙, 썸네일보다 위에 오버레이 (z-40) -->
+	  <button data-request class="request-button" style="z-index:50; position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);">복사</button>
+        </div>
+
+
+
+        <!-- [3] 정보 (오른쪽) -->
+        <div class="flex flex-col flex-1 min-w-0 gap-0.5">
+          <h3 data-title class="song-title text-base font-bold truncate max-w-[12em]"></h3>
+          <p data-artist class="artist-name text-gray-500 text-sm font-medium truncate max-w-[10em]"></p>
+          <div class="flex items-center gap-1 text-xs text-gray-700">
+            <div data-categories class="flex gap-1"></div>
+            <div data-note class="flex"></div>
+          </div>
+
+        </div>
+        <!-- [4] 숨김: inst, key, edit/delete 등 -->
+        <button data-instlink style="display:none"></button>
+        <div style="display:none">
+          <span data-key></span>
+          <span data-transpose></span>
+          <button data-edit></button>
+          <button data-delete></button>
+        </div>
+      </div>
+    </div>
+  </template>
+
+
+  <script>
+    function createCategoryTag(category) {
+      const tag = document.createElement('span');
+      tag.className = 'category-tag px-3 py-1 rounded-full text-xs font-semibold';
+      tag.textContent = category;
+      return tag;
+    }
+    function createFilterTag(text, onRemove) {
+      const filterTag = document.createElement('div');
+      filterTag.className = 'filter-tag';
+      filterTag.innerHTML = `<span>${text}</span><button type="button">×</button>`;
+      filterTag.querySelector('button').addEventListener('click', onRemove);
+      return filterTag;
+    }
+    document.addEventListener('DOMContentLoaded', function() {
+      const toggleSwitch = document.getElementById('view-mode');
+      const toggleOptions = document.querySelectorAll('.toggle-option');
+      toggleOptions.forEach(option => option.addEventListener('click', function() {
+        const idx = this.getAttribute('data-index');
+        toggleOptions.forEach(o => o.classList.replace('active','inactive'));
+        this.classList.replace('inactive','active');
+        toggleSwitch.setAttribute('data-active', idx);
+      }));
+    });
+  </script>
+</body>
+</html>

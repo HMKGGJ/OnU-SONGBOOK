@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="ko" class="light">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>온유ONU 노래책</title>
+  <script>
+    (function() {
+      const ua = navigator.userAgent;
+      const isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(ua);
+
+      // 1) PC는 그대로, 또는 sessionStorage로 PC 보기 강제 시 그대로
+      if (!isMobile || sessionStorage.getItem('forcePCView') === '1') {
+        return;
+      }
+    
+      // 2) 모바일이면 mobile로 리다이렉션 (2초 후 fallback)
+      //const targetMobile = window.location.origin + '/index.html';
+      const fallback320   = window.location.origin + '/indexmobile.html';
+      const timeoutMs     = 2000; // 2초 뒤 fallback
+  
+      if (/Android/i.test(ua)) {
+        // Android: Intent URI 사용
+        const intentUri = 'intent://' +
+          targetMobile.replace(/^https?:\/\//, '') +
+          '#Intent;scheme=https;package=com.android.chrome;end';
+        window.location.href = intentUri;
+      }
+      else if (/iPhone|iPad|iPod/i.test(ua)) {
+        // iOS: chrome:// 스킴
+        window.location.href = targetMobile.replace(/^https?:\/\//, 'googlechrome://');
+      }
+      else {
+        // 기타 모바일 브라우저: 그냥 이동
+        window.location.href = targetMobile;
+      }
+  
+      // 크롬이 없거나 스킴이 막히면 2초 후 fallback
+      setTimeout(() => {
+        window.location.replace(fallback320);
+      }, timeoutMs);
+    })();
+  </script>
+
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>온유ONU 노래책</title>
+  <meta name="description" content="스트리머 전용 개인 노래책 – 곡 관리 및 시청자 요청 지원"/>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script type="module" src="./appmobilelist.js"></script>
+  <link rel="stylesheet" href="stylemobile.css">
+
+</head>
+<body class="gradient-bg text-gray-800 min-h-screen m-0 p-0">
+
+  <!-- 히어로 섹션 (큰 타이틀+부제) -->
+  <section class="hero-section text-center pt-48 pb-24">
+    <h1 class="hero-title main-title text-5xl md:text-7xl mb-2 pb-8">✨온유ONU 노래책</h1>
+    <p class="hero-subtitle text-xl md:text-3xl mb-6 pb-16">Dearz</p>
+    <div class="stats-container flex flex-row justify-center items-stretch gap-8 mt-10 ">
+      <div class="stat-gradient-border">
+        <div class="stat-card flex flex-col justify-center items-center shadow-xl">
+          <div class="stat-number text-4xl font-extrabold text-indigo-600" id="total-songs">0</div>
+          <div class="stat-label mt-2 text-gray-700 text-3xl">총 곡수</div>
+        </div>
+      </div>
+      <div class="stat-gradient-border">
+        <div class="stat-card flex flex-col justify-center items-center shadow-xl">
+          <div class="stat-number text-4xl font-extrabold text-purple-600" id="total-categories">0</div>
+          <div class="stat-label mt-2 text-gray-700 text-3xl">🎙️신청방법</div>
+          <div style="color: #667eea; font-weight: 600; margin-top: 0.5rem; font-size: 1.5rem;">신청 노래제목 3,000🧀</div>
+          <div class="text-gray-800 text-base mt-1">⚠️노래신청은 미션이 아니므로 환불이 불가 합니다.⚠️</div>
+        </div>
+      </div>
+      <div class="stat-gradient-border">
+        <div class="stat-card flex flex-col justify-center items-center shadow-xl">
+          <div class="stat-number text-4xl font-extrabold text-pink-600" id="total-artists">0</div>
+          <div class="stat-label mt-2 text-gray-700 text-3xl">💣곡 안내</div>
+          <div style="color: #f56565; font-weight: 600; margin-top: 0.5rem; font-size: 1.5rem;">💣곡 단가: 5,000🧀+</div>
+          <div class="text-gray-800 text-base mt-1">💣곡을 신청시, 반드시 채팅 문의하고 신청해주세요!</div>
+        </div>
+      </div>
+    </div>
+    <div id="view-mode" class="toggle-switch" data-active="1" style="width:100%; max-width:380px; margin:0 auto;">
+      <div id="view-songs" class="toggle-option active" data-index="1">노래</div>
+      <div id="view-categories" class="toggle-option inactive" data-index="2">카테고리</div>
+      <div id="view-artists" class="toggle-option inactive" data-index="3">가수</div>
+    </div>
+    <div
+      class="hero-fade-bottom"
+      style="
+        position:absolute;
+        left:0; right:0; bottom:0;
+        height:120px;
+        pointer-events:none;
+        z-index:30;
+        background: linear-gradient(to bottom, transparent 0%, #fff 100%);
+      ">
+    </div>
+  </section>
+
+
+
+	
+    <!-- 추가/수정 폼 (스트리머) -->
+    <section id="add-form-container" class="glass-subtle p-8 rounded-3xl shadow-lg" hidden>
+      <h3 class="text-2xl mb-6 text-gray-800 flex items-center gap-3">
+        <span class="text-3xl">🎼</span> 곡 추가 / 수정
+      </h3>
+      <form id="add-song-form" class="grid sm:grid-cols-2 gap-6">
+        <input id="song-title" type="text" placeholder="제목" required class="input-field p-4 rounded-2xl"/>
+        <input id="song-artist" type="text" placeholder="아티스트" required class="input-field p-4 rounded-2xl"/>
+        <input id="song-categories" type="text" placeholder="카테고리(쉼표 구분)" class="input-field p-4 rounded-2xl"/>
+        <div class="flex space-x-3">
+          <input id="song-key" type="text" placeholder="키 (예: G, Am)" class="input-field p-4 rounded-2xl flex-1"/>
+          <input id="song-transpose" type="number" placeholder="+2 / -1" class="input-field p-4 rounded-2xl w-28"/>
+        </div>
+        <textarea id="song-notes" placeholder="노트" class="input-field p-4 rounded-2xl col-span-full h-24"></textarea>
+
+        <label class="flex items-center space-x-3 col-span-full">
+          <input id="song-completed" type="checkbox" class="h-6 w-6 text-green-500 rounded-lg"/>
+          <span class="text-gray-700 font-medium">완곡여부</span>
+        </label>
+        <label class="flex items-center space-x-3 col-span-full">
+          <input id="song-recommend" type="checkbox" class="h-6 w-6 text-yellow-500 rounded-lg"/>
+          <span class="text-gray-700 font-medium">추천</span>
+        </label>
+        <label class="flex items-center space-x-3 col-span-full">
+          <input id="song-bomb" type="checkbox" class="h-6 w-6 text-red-500 rounded-lg"/>
+          <span class="text-gray-700 font-medium">💣</span>
+        </label>
+
+        <input id="song-inst" type="url" placeholder="INST 링크 (YouTube)" required class="input-field p-4 rounded-2xl col-span-full"/>
+        <input id="song-thumbnail-url"
+               type="url"
+               placeholder="썸네일 URL (YouTube)"
+               class="input-field p-4 rounded-2xl col-span-full"/>
+        <button type="submit" id="add-submit-button" class="btn-primary col-span-full px-8 py-4 rounded-2xl font-bold text-lg">
+          ✨ 추가하기
+        </button>
+      </form>
+    </section>
+
+	
+  <!-- 곡 그리드 -->
+  <main class="container mx-auto pt-24 py-10 px-32">
+    <div id="song-grid" class="grid gap-x-4 gap-y-6"></div>
+  </main>
+</body>
+
+
+
+
+    <!-- 페이지네이션 (숨김해도 무관) -->
+    <section id="pagination" class="hidden"></section>
+  </main>
+
+  <!-- 모달 -->
+  <section id="tag-modal" class="hidden fixed inset-0 bg-black/10 backdrop-blur-sm flex items-center justify-center p-8 z-50">
+    <div id="modal-content" class="glass w-[90vw] max-w-[1200px] p-1 rounded-3xl shadow-2xl flex flex-col max-h-[95vh] overflow-y-auto">
+      <button id="modal-close" class="self-end mb-6 text-3xl text-gray-600 hover:text-red-500">✕</button>
+      <h2 id="modal-title" class="text-3xl font-bold mb-8 text-gray-800"></h2>
+      <div id="modal-grid" class="flex flex-col w-full gap-2 overflow-y-auto max-h-[80vh] p-1"></div>
+    </div>
+  </section>
+
+<!-- 카드 템플릿 -->
+<template id="song-card2-template">
+  <div class="card-gradient-border"
+       style="position:relative; width:100%; max-width:780px; margin:0 auto; min-width:0; padding:0.07rem 0; box-sizing:border-box; overflow:visible;">
+    <div class="group song-card2 flex flex-row items-center relative rounded-3xl shadow-lg"
+         style="background:rgba(250,250,250,0.94); min-height:72px; width:100%; max-width:780px; margin:0 auto; border-radius:1.2rem; position:relative; box-sizing:border-box;">
+         
+      <!-- (1) 썸네일 왼쪽으로 이동 (정사각형) -->
+      <div style="flex:0 0 72px; width:72px; height:72px; display:flex; align-items:center; justify-content:center; position:relative; margin-right:1rem;">
+        <div class="relative group/thumbnail" style="width:72px; height:72px; border-radius:1.2rem; overflow:hidden; position:relative;">
+          <img data-img style="position:absolute; top:50%; left:50%; width:100%; height:135%; object-fit:cover; border-radius:1.2rem; transform:translate(-50%,-50%);">
+
+          <!-- 복사버튼: 기존과 완벽하게 동일 -->
+          <div class="absolute inset-0 w-full h-full flex items-center justify-center pointer-events-none group-hover/thumbnail:backdrop-blur-sm group-hover/thumbnail:bg-white/1 transition" style="z-index:30; border-radius:1.2rem;">
+            <button data-request
+              class="opacity-0 pointer-events-none group-hover/thumbnail:opacity-100 group-hover/thumbnail:pointer-events-auto request-button px-2 py-2 rounded-2xl text-white text-3xl font-extrabold transition"
+              style="font-size:2rem; font-weight:900; text-shadow:0 2px 16px rgba(0,0,0,0.4);">
+              복사
+            </button>
+          </div>
+          <!-- 수정/삭제버튼: 기존방식 유지(숨김) -->
+          <div class="absolute inset-0 flex items-center justify-center space-x-4" style="z-index:20; pointer-events:auto;">
+            <button data-edit
+                    class="hidden bg-green-500 hover:bg-green-600 text-white px-6 py-3 rounded-lg text-lg font-bold">
+              수정
+            </button>
+            <button data-delete
+                    class="hidden bg-red-500 hover:bg-red-600 text-white px-6 py-3 rounded-lg text-lg font-bold">
+              삭제
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 오른쪽: 곡 정보/버튼 -->
+      <div class="card-content flex-1 flex flex-col justify-center pl-6 pr-4" style="gap:0.38rem; min-width:0;">
+        <!-- 나머지 정보 동일하게 유지 -->
+        <div style="display:flex; align-items:center; gap:0.7rem; width:100%;">
+          <h3 data-title class="song-title" style="font-size:1.25rem; font-weight:700; line-height:1.18; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:310px;"></h3>
+        </div>
+        <div style="font-size:1.01rem; color:#666; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:200px;">
+          <span data-artist class="artist-name"></span>
+        </div>
+        <div style="display:flex; align-items:center; gap:0.43rem; flex-wrap:nowrap; margin-top:0.38rem;">
+          <div data-categories style="display:flex; gap:0.23rem; flex-wrap:nowrap; font-size:0.97rem; font-weight:500;"></div>
+          <span data-note class="btn-primary3 no-translate px-3 py-2 rounded-2xl text-sm font-bold whitespace-nowrap shrink-0"
+                  style="min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"></span>
+          <span data-key class="btn-primary3 no-translate px-3 py-2 rounded-2xl text-sm font-bold whitespace-nowrap shrink-0"
+                  style="min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"></span>
+          <span data-transpose class="btn-primary3 px-3 py-2 rounded-2xl text-sm font-bold" style="display:none;"></span>
+          <button data-instlink
+            class="btn-primary2 px-3 py-2 rounded-2xl text-sm font-bold flex-1"
+            style="
+              min-width:0;
+              max-width:5rem;
+              overflow:hidden;
+              text-overflow:ellipsis;
+              white-space:nowrap;
+              background: linear-gradient(45deg, #6366f1, #8b5cf6, #ec4899, #f59e0b);
+              background-clip: text;
+              -webkit-background-clip: text;
+              color: transparent;
+              -webkit-text-fill-color: transparent;
+            ">
+            INST.
+          </button>
+        </div>
+      </div>
+      
+      <!-- 카드 오른쪽 위에 뱃지 한줄 (위치 변동 없음) -->
+      <div style="position:absolute; top:-1.1rem; left:-1.1rem; z-index:11; display:flex; gap:0.3rem; transform:translateY(0.5rem) translateX(0.5rem);">
+        <span data-completed class="completed-badge" style="background:#38a169; color:white; border-radius:1rem; font-size:0.91rem; font-weight:700; padding:0.22rem 0.5rem 0.22rem 0.5rem;">완곡</span>
+        <span data-recommend class="recommend-badge" style="background:#fbbf24; color:#613306; border-radius:1rem; font-size:0.91rem; font-weight:700; padding:0.22rem 0.5rem;">추천</span>
+        <span data-bomb class="bomb-badge" style="background:#f56565; color:white; border-radius:1rem; font-size:0.91rem; font-weight:700; padding:0.22rem 0.5rem;">💣</span>
+      </div>
+    </div>
+  </div>
+</template>
+
+
+
+
+
+<!-- 1. 검색 토글 버튼 -->
+<button id="toggle-search-bar-btn" class="search-toggle-btn" style="z-index:9999;" title="검색창 열기">
+  <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+    <circle cx="11" cy="11" r="8" />
+    <line x1="21" y1="21" x2="16.65" y2="16.65" />
+  </svg>
+</button>
+
+<!-- 2. 플로팅 검색 바 (처음엔 숨김) -->
+<div id="floating-search-bar"
+  class="fixed right-[2rem] bottom-[18.5rem] flex flex-row items-center gap-3 rounded-full shadow-2xl opacity-0 pointer-events-none scale-x-0 transition-all duration-300 origin-right"
+  style="
+    z-index:999;
+    border: 2px solid rgba(79,140,244,0.1);
+    background: linear-gradient(120deg, rgba(56,189,248,0.13) 0%, rgba(162,28,175,0.13) 100%);
+    padding:0 2.5rem 0 1.1rem;
+    min-width:0;
+    height:5rem;
+    backdrop-filter: blur(18px);
+    background-size: 300% 300%;
+    animation: bg-move 3s ease-in-out infinite;
+  ">
+  <form id="filter-bar" class="flex flex-row items-center gap-4 w-full" style="margin:0;">
+    <div id="search-container" style="flex:1; position: relative; margin-right: 3rem;">
+      <input
+        id="search-input"
+        type="text"
+        placeholder="제목, 가수, 태그 검색..."
+        class="input-field w-full p-4 rounded-full"
+        style="min-width:180px; height: 3.3rem; padding-left: 1rem; padding-right: 14rem; box-sizing: border-box; background: rgba(255,255,255,0.3); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.08);"
+      />
+    </div>
+    <div
+      id="tag-container"
+      style="
+        position: absolute;
+        top: 50%;
+        right: 6.2rem;
+        transform: translateY(-50%);
+        display: flex;
+        flex-direction: row;
+        gap: 0.2rem;
+        align-items: center;
+        max-width: 28rem;
+        overflow-x: auto;
+        white-space: nowrap;
+        z-index: 20;
+      "
+    ></div>
+
+      
+    </button>
+
+  </form>
+</div>
+
+
+<!-- 로그인버튼 -->
+<button id="toggle-login-bar-btn" class="floating-login-button" style="z-index:9999;" title="계정/모드 메뉴">
+  <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+    <path d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-3A2.25 2.25 0 008.25 5.25V9" />
+    <path d="M4.5 9v10.5A2.25 2.25 0 006.75 21h10.5A2.25 2.25 0 0019.5 19.5V9" />
+    <path d="M9 13.5h6" />
+  </svg>
+</button>
+
+<!-- (추가) 계정/모드용 플로팅 메뉴 -->
+<div id="floating-extra-buttons" class="fixed right-[2rem] bottom-[24rem] flex flex-row items-center gap-3 rounded-full shadow-2xl opacity-0 pointer-events-none scale-x-0 transition-all duration-300 origin-right"
+  style="
+    z-index:999;
+    position:fixed;
+    right:2rem;
+    bottom:24rem;
+    display:flex;
+    flex-direction:row;
+    border: 2px solid rgba(79,140,244,0.1);
+    align-items:center;
+    gap:1.1rem;
+    border-radius:9999px;
+    background: linear-gradient(120deg, rgba(56,189,248,0.1) 0%, rgba(162,28,175,0.1) 100%);
+    padding:0 5rem 0 1.1rem;
+    min-width:0;
+    height:5rem;
+    backdrop-filter: blur(18px);
+    background-size: 300% 300%;
+    animation: bg-move 3s ease-in-out infinite;
+  ">
+  <button id="toggle-role" class="filter-option" style="height:3.3rem; border-radius:9999px; font-size:1.08rem; padding:0 1.5rem;">Edit모드</button>
+  <button id="login-btn" class="filter-option" style="height:3.3rem; border-radius:9999px; font-size:1.08rem; padding:0 1.5rem;">연동&로그인</button>
+  <button id="logout-btn" class="filter-option" style="display:none; height:3.3rem; border-radius:9999px; font-size:1.08rem; padding:0 1.5rem;">로그아웃</button>
+  <button id="login-status-btn" class="filter-option" style="display:none; height:3.3rem; border-radius:9999px; font-size:1.08rem; padding:0 1.5rem;">로그인됨</button>
+  <button id="mypage-btn" class="filter-option" style="height:3.3rem; border-radius:9999px; font-size:1.08rem; padding:0 1.5rem;">회원정보</button>
+</div>
+
+
+  <!-- 정렬 플로팅 바 토글 버튼 -->
+<button id="toggle-sort-bar-btn" class="sorting-toggle-btn" style="z-index:9999;" title="정렬">
+  <span class="sort-selected-label"></span>
+  <span class="sort-icon">
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+      stroke="currentColor" stroke-width="2" class="w-8 h-8">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M3 7h18M3 12h12M3 17h6" />
+    </svg>
+  </span>
+</button>
+
+  <!-- 플로팅 정렬 버튼 메뉴 -->
+  <div id="floating-sort-buttons" class="fixed right-[2rem] bottom-[6.5rem] flex flex-row items-center gap-3 rounded-full shadow-2xl opacity-0 pointer-events-none scale-x-0 transition-all duration-300 origin-right"
+  style="
+    z-index:99;
+    position:fixed;
+    right:2rem;
+    bottom:13rem;
+    display:flex;
+    flex-direction:row;
+    border: 2px solid rgba(79,140,244,0.1);
+    align-items:center;
+    gap:1.1rem;
+    border-radius:9999px;
+    background: linear-gradient(120deg, rgba(56,189,248,0.1) 0%, rgba(162,28,175,0.1) 100%);
+    padding:0 5rem 0 1.1rem;
+    min-width:0;
+    height:5rem;
+    backdrop-filter: blur(18px);
+    background-size: 300% 300%;
+    animation: bg-move 3s ease-in-out infinite;
+  ">
+    <select id="sort-combo" class="w-44 btn-secondary text-base py-2 px-3 rounded-xl">
+      <option value="latest_desc">최신순▼</option>
+      <option value="latest_asc">최신순▲</option>
+      <option value="title_asc">가나다순▲</option>
+      <option value="title_desc">가나다순▼</option>
+      <option value="artist_asc">가수순▲</option>
+      <option value="artist_desc">가수순▼</option>
+      <option value="proficiency_asc">숙련도순▲</option>
+      <option value="proficiency_desc">숙련도순▼</option>
+    </select>
+  </div>
+</div>
+
+
+<!-- 플로팅 토글 버튼 (필터 확장) + 정렬 버튼 + 확장 메뉴 -->
+<div id="floating-bar-container">
+  <button id="toggle-floating-bar-btn" class="floating-toggle-btn" style="z-index:9999;" title="필터 메뉴">
+    <span class="filter-selected-label"></span>
+    <span class="filter-icon">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-width="2"
+        stroke-linecap="round" stroke-linejoin="round" class="w-8 h-8" viewBox="0 0 24 24">
+        <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
+      </svg>
+    </span>
+  </button>
+
+
+  <!-- 플로팅 필터 버튼 메뉴 (요구대로 3개만 수정) -->
+  <div id="floating-filter-buttons"
+    class="fixed right-[2rem] bottom-[7.5rem] flex flex-row items-center gap-3 rounded-full shadow-2xl opacity-0 pointer-events-none scale-x-0 transition-all duration-300 origin-right"
+    style="
+      z-index:999;
+      position:fixed;
+      right:2rem;
+      bottom:7.5rem;
+      display:flex;
+      flex-direction:row;
+      border: 2px solid rgba(79,140,244,0.1);
+      align-items:center;
+      gap:1.1rem;
+      border-radius:9999px;
+      background: linear-gradient(120deg, rgba(56,189,248,0.1) 0%, rgba(162,28,175,0.1) 100%);
+      padding:0 5rem 0 1.1rem;
+      min-width:0;
+      height:5rem;
+      backdrop-filter: blur(18px);
+      background-size: 300% 300%;
+      animation: bg-move 3s ease-in-out infinite;
+    ">
+    <button id="completed-toggle" class="filter-option" style="height:3.3rem; border-radius:9999px; font-size:1.08rem; padding:0 1.5rem;">완곡만</button>
+    <button id="fav-toggle" class="filter-option" style="height:3.3rem; border-radius:9999px; font-size:1.08rem; padding:0 1.5rem;">추천만</button>
+    <button id="favorites-toggle" class="filter-option" style="height:3.3rem; border-radius:9999px; font-size:1.08rem; padding:0 1.5rem;">즐겨찾기</button>
+    <button id="clear-filter-btn" class="filter-option" style="color:#b91c1c;font-weight:700;height:3.3rem; border-radius:9999px; font-size:1.08rem; padding:0 1.5rem;">필터 해제</button>
+  </div>
+
+
+
+
+
+
+
+<!-- indexmobile.html로 이동하는 고정 플로팅 햄버거 메뉴 버튼 -->
+<a href="/index.html" id="goto-mobile-btn" class="mobile-float-btn" title="그리드로 보기">
+  <svg width="32" height="32" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24" style="display:block;">
+    <rect x="4"  y="4"  width="7" height="7" rx="2" fill="currentColor"/>
+    <rect x="13" y="4"  width="7" height="7" rx="2" fill="currentColor"/>
+    <rect x="4"  y="13" width="7" height="7" rx="2" fill="currentColor"/>
+    <rect x="13" y="13" width="7" height="7" rx="2" fill="currentColor"/>
+  </svg>
+</a>
+
+
+  <script>
+    function createCategoryTag(category) {
+      const tag = document.createElement('span');
+      tag.className = 'category-tag px-3 py-1 rounded-full text-xs font-semibold';
+      tag.textContent = category;
+      return tag;
+    }
+    function createFilterTag(text, onRemove) {
+      const filterTag = document.createElement('div');
+      filterTag.className = 'filter-tag';
+      filterTag.innerHTML = `<span>${text}</span><button type="button">×</button>`;
+      filterTag.querySelector('button').addEventListener('click', onRemove);
+      return filterTag;
+    }
+    document.addEventListener('DOMContentLoaded', function() {
+      const toggleSwitch = document.getElementById('view-mode');
+      const toggleOptions = document.querySelectorAll('.toggle-option');
+      toggleOptions.forEach(option => option.addEventListener('click', function() {
+        const idx = this.getAttribute('data-index');
+        toggleOptions.forEach(o => o.classList.replace('active','inactive'));
+        this.classList.replace('inactive','active');
+        toggleSwitch.setAttribute('data-active', idx);
+      }));
+    });
+  </script>
+
+
+
+
+
+

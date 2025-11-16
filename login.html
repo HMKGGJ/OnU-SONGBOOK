@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>로그인 | 온유ONU 노래책</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Inter', 'Noto Sans KR', Arial, sans-serif;
+      background: linear-gradient(120deg, #e0c3fc 0%, #8ec5fc 100%);
+      min-height: 100vh;
+    }
+    .glass {
+      background: rgba(255,255,255,0.18);
+      box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.12);
+      backdrop-filter: blur(16px) saturate(150%);
+      -webkit-backdrop-filter: blur(16px) saturate(150%);
+      border-radius: 2rem;
+      border: 1.5px solid rgba(255,255,255,0.22);
+    }
+    .moving-gradient-text {
+      background: linear-gradient(45deg, #6366f1, #8b5cf6, #ec4899, #f59e0b);
+      background-size: 300% 300%;
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      animation: subtleHologram 5s ease-in-out infinite;
+    }
+    @keyframes subtleHologram {
+      0%, 100% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+    }
+  </style>
+</head>
+<body class="flex items-center justify-center min-h-screen">
+
+  <main class="glass w-[95vw] max-w-lg flex flex-col items-center px-10 py-10 gap-6">
+    <img src="https://nng-phinf.pstatic.net/MjAyNTAzMTZfMjMz/MDAxNzQyMDU0NTAyMDY4.VnZJ8y2dPYjw2CmwOlgEcBEjK7fdNWaWFK3gTlx_-XMg.Mfk1lDB-NjByuqHR_q4lpqfuZZISIp67JRPe1Pk5Twwg.PNG/123.png?type=f120_120_na" alt="온유 ONU 로고" class="mb-2 rounded-full shadow-xl w-16 h-16 bg-white/70 ring-2 ring-indigo-200"/>
+    <h1 class="moving-gradient-text text-3xl font-extrabold tracking-tight text-center mb-1">
+      온유 노래책 로그
+    </h1>
+
+    <p class="text-sm text-gray-700 text-center">
+      즐겨찾기와 다양한 개인화 기능(추가예정)을 사용해보세요</br>물론 로그인하지 않아도 노래책을 사용하실 수 있습니다!</br>온유 노래책은 로그인 후 다음 정보를 수집하며,</br>서비스 제공 목적 외에는 사용되지 않습니다:
+    </p>
+    <ul class="text-sm text-gray-700 list-disc pl-5">
+      <li>이메일 주소</li>
+      <li>닉네임 (이름)</li>
+      <li>프로필 이미지 (선택)</li>
+      <li>서비스 이용 기록: 신청한 곡, 즐겨찾기 내역, 이용 통계 등</li>
+    </ul>
+    <p class="text-xs text-gray-500">
+      자세한 사항은 <a href="/privacy.html" class="underline text-indigo-500 hover:text-indigo-700">개인정보 처리방침</a>을 참조하세요.
+    </p>
+
+    <div class="w-full flex flex-col gap-2 text-sm text-gray-800">
+      <label class="flex items-center gap-2">
+        <input type="checkbox" id="ageCheck" class="accent-indigo-500" /> 만 14세 이상입니다.
+      </label>
+      <label class="flex items-center gap-2">
+        <input type="checkbox" id="consentCheck" class="accent-indigo-500" /> 개인정보 수집 및 이용에 동의합니다.
+      </label>
+    </div>
+
+    <button id="loginBtn" disabled
+      class="w-full flex items-center justify-center gap-3 py-3 bg-indigo-500 text-white rounded-xl font-semibold hover:bg-indigo-600 disabled:opacity-40 transition-all">
+      <img src="Google_logo.png" alt="Google 로고" class="w-7 h-7 rounded-full bg-white shadow" />
+      <span class="text-lg">Google 계정으로 로그인</span>
+    </button>
+
+    <div id="msg" class="text-sm text-center text-rose-500 min-h-[1.8em] mt-1"></div>
+  </main>
+
+  <!-- 여기만 변경: type="module" -->
+  <script type="module">
+    import { SUPABASE_URL, SUPABASE_ANON_KEY } from './supabaseConfig.js';
+    
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    const ageCheck = document.getElementById('ageCheck');
+    const consentCheck = document.getElementById('consentCheck');
+    const loginBtn = document.getElementById('loginBtn');
+    const msg = document.getElementById('msg');
+
+    function updateBtn() {
+      loginBtn.disabled = !(ageCheck.checked && consentCheck.checked);
+    }
+
+    ageCheck.addEventListener('change', updateBtn);
+    consentCheck.addEventListener('change', updateBtn);
+
+    // 쿼리파라미터에서 redirect 값 추출
+    function getRedirectParam() {
+      const urlParams = new URLSearchParams(window.location.search);
+      return urlParams.get('redirect');
+    }
+
+    loginBtn.addEventListener('click', async () => {
+      // 구글 로그인 → 로그인 끝나면 다시 login.html로, redirect값 유지
+      const redirectParam = getRedirectParam() || '/index.html';
+      await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: window.location.origin + `/login.html?redirect=${encodeURIComponent(redirectParam)}`
+        }
+      });
+    });
+
+    // 로그인 성공 후(콜백), 쿼리파라미터의 redirect로 이동
+    document.addEventListener('DOMContentLoaded', () => {
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        const dest = getRedirectParam();
+        if (session && dest) {
+          window.location.replace(dest);
+        }
+        // dest가 없으면 login.html에 머뭄
+      });
+    });
+  </script>
+</body>
+</html>

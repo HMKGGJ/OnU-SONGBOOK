@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>개인정보 동의 | 온유ONU 노래책</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Inter', 'Noto Sans KR', Arial, sans-serif;
+      background: linear-gradient(120deg, #e0c3fc 0%, #8ec5fc 100%);
+      min-height: 100vh;
+    }
+    .glass {
+      background: rgba(255,255,255,0.18);
+      box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.12);
+      backdrop-filter: blur(16px) saturate(150%);
+      -webkit-backdrop-filter: blur(16px) saturate(150%);
+      border-radius: 2rem;
+      border: 1.5px solid rgba(255,255,255,0.22);
+    }
+    .moving-gradient-text {
+      background: linear-gradient(45deg, #6366f1, #8b5cf6, #ec4899, #f59e0b);
+      background-size: 300% 300%;
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      animation: subtleHologram 5s ease-in-out infinite;
+    }
+    @keyframes subtleHologram {
+      0%, 100% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+    }
+  </style>
+</head>
+<body class="flex items-center justify-center min-h-screen">
+
+  <main class="glass w-[95vw] max-w-xl flex flex-col items-center px-10 py-10 gap-6">
+    <div class="flex flex-col items-center gap-2">
+      <h1 class="moving-gradient-text text-3xl font-extrabold tracking-tight text-center mb-1">
+        개인정보 수집 동의
+      </h1>
+    </div>
+
+    <p class="text-sm text-gray-700 text-center leading-relaxed">
+      온유 노래책은 Google 로그인을 통해 아래 정보를 수집하며,<br/>
+      서비스 제공 목적 외에 사용하지 않습니다:
+    </p>
+    <ul class="text-sm text-gray-800 list-disc pl-5 mb-1">
+      <li>이메일 주소</li>
+      <li>닉네임 (이름)</li>
+      <li>프로필 이미지</li>
+      <li>서비스 이용 기록: 신청한 곡, 즐겨찾기 내역, 이용 통계 등</li>
+    </ul>
+    <p class="text-xs text-gray-500 text-center mb-2">
+      자세한 사항은 <a href="/privacy.html" class="underline text-indigo-500 hover:text-indigo-700">개인정보 처리방침</a>을 참조하세요.
+    </p>
+
+    <div class="w-full flex flex-col gap-2 text-sm text-gray-800">
+      <label class="flex items-center gap-2">
+        <input type="checkbox" id="ageCheck" class="accent-indigo-500" />
+        본인은 만 14세 이상입니다.
+      </label>
+      <label class="flex items-center gap-2">
+        <input type="checkbox" id="consentCheck" class="accent-indigo-500" />
+        개인정보 수집 및 이용에 동의합니다.
+      </label>
+    </div>
+
+    <button id="confirmBtn"
+            disabled
+            class="w-full py-3 mt-3 bg-indigo-500 text-white rounded-xl font-semibold hover:bg-indigo-600 disabled:opacity-40 transition-all">
+      동의하고 계속하기
+    </button>
+
+    <div id="message" class="text-sm text-center text-rose-500 min-h-[1.8em] mt-1"></div>
+  </main>
+
+  <script type="module">
+    import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+    import { SUPABASE_URL, SUPABASE_ANON_KEY } from './supabaseConfig.js';
+
+    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    const ageCheck = document.getElementById('ageCheck');
+    const consentCheck = document.getElementById('consentCheck');
+    const confirmBtn = document.getElementById('confirmBtn');
+    const message = document.getElementById('message');
+
+    function updateBtnState() {
+      confirmBtn.disabled = !(ageCheck.checked && consentCheck.checked);
+    }
+
+    ageCheck.addEventListener('change', updateBtnState);
+    consentCheck.addEventListener('change', updateBtnState);
+
+    // 세션 복원: URL 해시에서 토큰 추출
+    const params = new URLSearchParams(window.location.hash.slice(1));
+    const access_token = params.get('access_token');
+    const refresh_token = params.get('refresh_token');
+
+    if (access_token && refresh_token) {
+      try {
+        await supabase.auth.setSession({ access_token, refresh_token });
+      } catch (e) {
+        console.error("세션 파싱 예외 발생:", e);
+        message.textContent = "세션 복원에 실패했습니다.";
+      }
+    }
+
+    confirmBtn.addEventListener('click', async () => {
+      const { data: { user }, error } = await supabase.auth.getUser();
+      if (error || !user) {
+        message.textContent = "로그인 정보가 없습니다.";
+        return;
+      }
+
+      const { error: updateError } = await supabase
+        .from("users")
+        .update({
+          consentGiven: true,
+          consentAt: new Date().toISOString()
+        })
+        .eq("id", user.id);
+
+      if (updateError) {
+        console.error("동의 저장 실패:", updateError);
+        message.textContent = "동의 저장 중 오류가 발생했습니다.";
+        return;
+      }
+
+      sessionStorage.setItem('consentGiven', 'true');
+      window.location.href = "/index.html";
+    });
+  </script>
+</body>
+</html>
