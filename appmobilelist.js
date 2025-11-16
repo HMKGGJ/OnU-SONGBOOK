@@ -2,8 +2,6 @@ import { SUPABASE_URL, SUPABASE_ANON_KEY } from './supabaseConfig.js';
 
 const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-
-
 const ALLOWED_UIDS = ['b3e72f60-54a2-41fc-8c33-ef681f691ab1','1479722d-fb11-4e0d-9481-5b18fe5ff6a8','67c54451-8c12-45a1-9417-67db91b3feff'];
 let currentUser = null;
 let songs = [];
@@ -28,8 +26,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     'favorites-toggle'
   ].forEach(id => { refs[id] = document.getElementById(id); });
 
-
-
   // ----------- 필터 바/검색/정렬 관련 ----------
   refs['filter-bar'].addEventListener('submit', function(e) {
     e.preventDefault();
@@ -46,16 +42,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   const floatingSearchBar = document.getElementById('floating-search-bar');
   let isSearchBarOpen = false;
   
-  // 열기/닫기 함수 (애니메이션 class 방식)
   function openSearchBar() {
-    // 다른 플로팅 닫기
     closeFloatingBar && closeFloatingBar();
     closeExtraBar && closeExtraBar();
     closeSortBar && closeSortBar();
     isSearchBarOpen = true;
     floatingSearchBar.classList.add('opacity-100', 'scale-x-100', 'pointer-events-auto');
     floatingSearchBar.classList.remove('opacity-0', 'scale-x-0', 'pointer-events-none');
-    // 자동 포커스(선택)
     setTimeout(() => {
       document.getElementById('search-input')?.focus();
     }, 80);
@@ -74,7 +67,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
   
-  // 외부 클릭 시 닫기
   document.addEventListener('click', (e) => {
     if (
       isSearchBarOpen &&
@@ -84,9 +76,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       closeSearchBar();
     }
   });
-  
-  
-
 
   const mypageBtn = document.getElementById('mypage-btn');
   if (mypageBtn) mypageBtn.onclick = () => window.location.href = '/mypage.html';
@@ -364,7 +353,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       const li = document.createElement('li');
       li.className = 'flex items-center gap-4 bg-white/70 backdrop-blur p-3 rounded-lg';
 
-      // 제목 마퀴 조건
       let titleSpan = '';
       if ((s.title || '').length >= titleMarqueeMinLength) {
         titleSpan = `
@@ -376,7 +364,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         titleSpan = `<span class="flex-[3.2] font-medium truncate">${s.title}</span>`;
       }
 
-      // 노트 마퀴 조건
       let notesSpan = '';
       if ((s.notes || '').length >= notesMarqueeMinLength) {
         notesSpan = `
@@ -427,7 +414,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     window.currentFavorites = fakeFavorites;
     updateSongCardFavoriteUI(songId, !alreadyFav);
 
-    // 서버에는 백그라운드 반영
     const { data: profile } = await supabase
       .from('user_profile_stats')
       .select('favorites')
@@ -451,22 +437,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     await updateCurrentFavorites();
   }
 
-  // 부분 갱신: 해당 song-card2만 즐겨찾기 버튼 갱신
   function updateSongCardFavoriteUI(songId, isFav) {
     const card = refs['song-grid'].querySelector(`.song-card2[data-id="${songId}"]`);
     if (!card) return;
   
-    // 1. 기존 버튼 있으면 지움
     let favBtn = card.querySelector('.fav-btn');
     if (favBtn) favBtn.remove();
   
-    // 2. 즐겨찾기일 때만 새로 버튼 생성해서 붙임
     if (isFav) {
       favBtn = document.createElement('button');
       favBtn.className = 'fav-btn ml-3 align-middle active';
       favBtn.type = 'button';
       favBtn.setAttribute('aria-label', '즐겨찾기');
-      favBtn.style.background = 'transparent'; // 혹시 남는 스타일 방지
+      favBtn.style.background = 'transparent';
       favBtn.innerHTML = '<span class="favorite-icon">✨</span>';
       favBtn.onclick = (e) => {
         e.stopPropagation();
@@ -475,7 +458,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       card.querySelector('.song-title').after(favBtn);
     }
   }
-
 
   // ---------- 메인 렌더 함수 ----------
   async function render() {
@@ -490,8 +472,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     if (viewMode === 'songs') {
       refs['song-grid'].classList.add('grid-cols-1');
-      // 아래에 기존 곡카드 append 코드 계속
-      // ...
     } else {
       refs['song-grid'].classList.add('grid-cols-3');
       refs['filter-bar'].style.display = 'none';
@@ -568,7 +548,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       return cmp * dir;
     });
 
-    // 템플릿 렌더
     const tpl = document.getElementById('song-card2-template').content;
     filtered.forEach(s => {
       const c = tpl.cloneNode(true);
@@ -662,7 +641,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
       c.querySelector('[data-instlink]').onclick = () => window.open(s.inst, '_blank');
 
-      // 즐겨찾기 버튼 - 부분 갱신 방식
       const titleEl = c.querySelector('[data-title]');
       const isFav = window.currentFavorites && window.currentFavorites.includes(s.id.toString());
       let oldBtn = c.querySelector('.fav-btn');
@@ -691,7 +669,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (window.setupFavBtns) setupFavBtns();
   }
 
-  // 데이터 1회만 로드!
   async function loadSongs() {
     const { data, error } = await supabase
       .from('onusongdb')
@@ -812,25 +789,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   await updateEditBtn();
 });
 
-// 탭 활성화 시 세션 체크 및 새로고침
-document.addEventListener('visibilitychange', async () => {
-  if (document.visibilityState === 'visible') {
-    let timedOut = false;
-    const timeout = setTimeout(() => {
-      timedOut = true;
-      window.location.reload();
-    }, 1500);
-
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      clearTimeout(timeout);
-      if (!session && !timedOut) window.location.reload();
-    } catch (e) {
-      clearTimeout(timeout);
-      if (!timedOut) window.location.reload();
-    }
-  }
-});
+// ✅ 자동 새로고침 완전 OFF: visibilitychange 리스너 자체 제거
+// (이제 다른 앱 갔다 와도 페이지가 자동으로 reload 되지 않음)
 
 // ------------------ 유틸리티(필터 태그) ------------------
 function createFilterTag(text, onRemove) {
@@ -840,4 +800,3 @@ function createFilterTag(text, onRemove) {
   filterTag.querySelector('button').addEventListener('click', onRemove);
   return filterTag;
 }
-
